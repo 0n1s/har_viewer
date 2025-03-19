@@ -2,10 +2,10 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HAR Analyzer</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
     <style>
         .expandable {
             cursor: pointer;
@@ -31,12 +31,12 @@
         <!-- File Upload Form -->
         <form id="uploadForm" enctype="multipart/form-data">
             <div class="mb-3">
-                <input type="file" class="form-control" id="harFile" name="file" accept=".har" required>
+                <input type="file" class="form-control" id="harFile" name="file" accept=".har" required />
             </div>
             <button type="submit" class="btn btn-primary">Upload</button>
         </form>
 
-        <hr>
+        <hr />
 
         <!-- Filter Options -->
         <h4>Filter Requests</h4>
@@ -53,46 +53,48 @@
             </div>
             <div class="col-md-4">
                 <label>URL Contains:</label>
-                <input type="text" id="url" class="form-control" placeholder="Enter URL keyword">
+                <input type="text" id="url" class="form-control" placeholder="Enter URL keyword" />
             </div>
             <div class="col-md-4">
                 <label>Status Code:</label>
-                <input type="number" id="status_code" class="form-control" placeholder="200, 404, etc.">
+                <input type="number" id="status_code" class="form-control" placeholder="200, 404, etc." />
             </div>
         </div>
         <div class="row mt-3">
             <div class="col-md-4">
                 <label>Min Time (ms):</label>
-                <input type="number" id="min_time" class="form-control" placeholder="Min response time">
+                <input type="number" id="min_time" class="form-control" placeholder="Min response time" />
             </div>
             <div class="col-md-4">
                 <label>Max Time (ms):</label>
-                <input type="number" id="max_time" class="form-control" placeholder="Max response time">
+                <input type="number" id="max_time" class="form-control" placeholder="Max response time" />
             </div>
             <div class="col-md-4">
                 <label>Cookies:</label>
-                <input type="text" id="cookie" class="form-control" placeholder="Cookie name">
+                <input type="text" id="cookie" class="form-control" placeholder="Cookie name" />
             </div>
         </div>
         <div class="row mt-3">
             <div class="col-md-4">
                 <label>Header Name:</label>
-                <input type="text" id="header" class="form-control" placeholder="Header name">
+                <input type="text" id="header" class="form-control" placeholder="Header name" />
             </div>
             <div class="col-md-4">
                 <label>Query Parameter:</label>
-                <input type="text" id="query_param" class="form-control" placeholder="Query parameter">
+                <input type="text" id="query_param" class="form-control" placeholder="Query parameter" />
             </div>
             <div class="col-md-4">
                 <label>Exclude URLs (comma-separated):</label>
-                <input type="text" id="exclude_urls" class="form-control" placeholder="URL1, URL2, ...">
+                <input type="text" id="exclude_urls" class="form-control" placeholder="URL1, URL2, ..." />
             </div>
         </div>
-        <button id="filterBtn" class="btn btn-success mt-3">Apply Filters</button>
+        <button id="filterBtn" class="btn btn-success mt-3">
+            Apply Filters
+        </button>
 
         <div id="loadingBar" class="mt-2"></div>
 
-        <hr>
+        <hr />
 
         <!-- Results Table -->
         <h4>Results</h4>
@@ -105,17 +107,51 @@
                     <th>Time (ms)</th>
                 </tr>
             </thead>
-            <tbody id="resultsTable">
-                <!-- Populated by JavaScript -->
-            </tbody>
+            <tbody id="resultsTable"><!-- Populated by JavaScript --></tbody>
         </table>
 
-        <button id="downloadBtn" class="btn btn-secondary">Download Filtered Results</button>
+        <button id="downloadBtn" class="btn btn-secondary">
+            Download Filtered Results
+        </button>
     </div>
 
     <script>
+        // Handle file upload
+        document
+            .getElementById("uploadForm")
+            .addEventListener("submit", function (event) {
+                event.preventDefault();
+                let formData = new FormData();
+                let fileInput = document.getElementById("harFile");
+
+                if (!fileInput.files.length) {
+                    alert("Please select a file to upload.");
+                    return;
+                }
+
+                formData.append("file", fileInput.files[0]);
+
+                fetch("/upload", {
+                    method: "POST",
+                    body: formData,
+                })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        alert(data.message || data.error);
+                    })
+                    .catch((err) => console.error("Upload Error:", err));
+            });
+
+        // Handle filtering
         document.getElementById("filterBtn").addEventListener("click", function () {
             document.getElementById("loadingBar").style.width = "50%";
+
+            // Prepare excludeUrls as a JSON string if multiple
+            let excludeList = document
+                .getElementById("exclude_urls")
+                .value.split(",")
+                .map((url) => url.trim())
+                .filter((u) => u);
 
             let query = new URLSearchParams({
                 method: document.getElementById("method").value,
@@ -126,47 +162,63 @@
                 cookie: document.getElementById("cookie").value,
                 header: document.getElementById("header").value,
                 query_param: document.getElementById("query_param").value,
-                exclude_urls: document.getElementById("exclude_urls").value
+                exclude_urls: JSON.stringify(excludeList),
             }).toString();
 
             fetch(`/filter?${query}`)
-                .then(response => response.json())
-                .then(data => {
+                .then((response) => response.json())
+                .then((data) => {
                     document.getElementById("loadingBar").style.width = "100%";
-                    setTimeout(() => document.getElementById("loadingBar").style.width = "0%", 500);
+                    setTimeout(() => {
+                        document.getElementById("loadingBar").style.width = "0%";
+                    }, 500);
 
                     let tableBody = document.getElementById("resultsTable");
                     tableBody.innerHTML = "";
                     data.entries.forEach((entry, index) => {
-                        let row = `<tr class="expandable" data-index="${index}">
-                            <td>${entry.request.method}</td>
-                            <td>${entry.request.url}</td>
-                            <td>${entry.response.status}</td>
-                            <td>${entry.time}</td>
-                        </tr>
-                        <tr class="hidden-row" id="details-${index}" style="display: none;">
-                            <td colspan="4">
-                                <strong>Request Data:</strong>
-                                <pre>${JSON.stringify(entry.request, null, 2)}</pre>
-                                <strong>Response Data:</strong>
-                                <pre>${JSON.stringify(entry.response, null, 2)}</pre>
-                            </td>
-                        </tr>`;
+                        let row = `
+                            <tr class="expandable" data-index="${index}">
+                                <td>${entry.request.method}</td>
+                                <td>${entry.request.url}</td>
+                                <td>${entry.response.status}</td>
+                                <td>${entry.time}</td>
+                            </tr>
+                            <tr class="hidden-row" id="details-${index}" style="display: none;">
+                                <td colspan="4">
+                                    <strong>Request Data:</strong>
+                                    <pre>${JSON.stringify(entry.request, null, 2)}</pre>
+                                    <strong>Response Data:</strong>
+                                    <pre>${JSON.stringify(entry.response, null, 2)}</pre>
+                                </td>
+                            </tr>
+                        `;
                         tableBody.innerHTML += row;
                     });
+
                     attachExpandEvent();
+                })
+                .catch((err) => {
+                    console.error("Filter Error:", err);
+                    document.getElementById("loadingBar").style.width = "0%";
                 });
         });
 
+        // Handle row expansion
         function attachExpandEvent() {
-            document.querySelectorAll(".expandable").forEach(row => {
+            document.querySelectorAll(".expandable").forEach((row) => {
                 row.addEventListener("click", function () {
                     let index = this.getAttribute("data-index");
                     let detailsRow = document.getElementById(`details-${index}`);
-                    detailsRow.style.display = detailsRow.style.display === "none" ? "table-row" : "none";
+                    detailsRow.style.display =
+                        detailsRow.style.display === "none" ? "table-row" : "none";
                 });
             });
         }
+
+        // Handle download of filtered results
+        document.getElementById("downloadBtn").addEventListener("click", function () {
+            window.location.href = "/download";
+        });
     </script>
 </body>
 
